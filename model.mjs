@@ -29,10 +29,16 @@ function calculateDerivativeV(u, v){
     return [x,y,z]
 }
 
+function normalizeUV(value, min, max) {
+    return (value - min) / (max - min);
+}
+
 function generateSurface(uMin = -1, uMax = 1, vMin = 0.2, vMax = 1, uSteps = 100, vSteps = 100) {
     const vertices = [];
     const indices = [];
     const normals = [];
+    const tangents = [];
+    const uvs = [];
 
     const stepsU = (uMax - uMin) / uSteps;
     const stepsV = (vMax - vMin) / vSteps;
@@ -51,6 +57,8 @@ function generateSurface(uMin = -1, uMax = 1, vMin = 0.2, vMax = 1, uSteps = 100
             const tangent_v = m4.normalize(calculateDerivativeV(u,v), []);
 
             normals.push(...m4.normalize(m4.cross(tangent_u, tangent_v, []), [0, 0, 1]));
+            tangents.push(...tangent_u);
+            uvs.push(normalizeUV(u, uMin, uMax), normalizeUV(v, vMin, vMax));
         }
     }
 
@@ -66,21 +74,34 @@ function generateSurface(uMin = -1, uMax = 1, vMin = 0.2, vMax = 1, uSteps = 100
         }
     }
 
-    return { vertices, normals, indices };
+    return { vertices, normals, tangents, uvs, indices };
 }
 
 export default function Model(gl, shProgram) {
     this.iVertexBuffer = gl.createBuffer();
     this.iNormalBuffer = gl.createBuffer();
+    this.iTangentBuffer = gl.createBuffer();
+    this.iUVBuffer = gl.createBuffer();
     this.iIndexBuffer = gl.createBuffer();
+
+    this.idTextureDiffuse = LoadTexture(gl, "./textures/diffuse.jpg");
+    this.idTextureNormal = LoadTexture(gl, "./textures/normal.jpg");
+    this.idTextureSpecular = LoadTexture(gl, "./textures/specular.jpg");
+
     this.count = 0;
 
-    this.BufferData = function(vertices, normals, indices) {
+    this.BufferData = function(vertices, normals, tangents, uvs, indices) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tangents), gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
@@ -97,7 +118,24 @@ export default function Model(gl, shProgram) {
         gl.vertexAttribPointer(shProgram.iAttribNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribNormal);
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribTangent, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribTangent);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iUVBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribUV, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribUV);
+
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureDiffuse);
+        
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureNormal);
+        
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, this.idTextureSpecular);
 
         gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_SHORT, 0);
     }
@@ -107,7 +145,7 @@ export default function Model(gl, shProgram) {
             return parseFloat(document.getElementById(name).value);
         }
 
-        const { vertices, normals, indices } = generateSurface(get('UMin'), get('UMax'), get('VMin'), get('VMax'), get('USteps'), get('VSteps'));
-        this.BufferData(vertices, normals, indices);
+        const { vertices, normals, tangents, uvs, indices } = generateSurface(get('UMin'), get('UMax'), get('VMin'), get('VMax'), get('USteps'), get('VSteps'));
+        this.BufferData(vertices, normals, tangents, uvs, indices);
     }
 }

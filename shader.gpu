@@ -14,13 +14,20 @@ uniform mat4 normalMatrix;
 
 uniform vec3 lightLocation;
 
+uniform vec2 point;
+uniform vec2 scale;
+
 uniform sampler2D diffuseTexture;
 uniform sampler2D normalTexture;
 uniform sampler2D specularTexture;
 
 out vec3 fragColor;
 
-vec3 getWorldSpaceNormal()
+vec2 getScaledUV() {
+     return ((inUV - point) * scale) + point;
+}
+
+vec3 getWorldSpaceNormal(vec2 uv)
 {
     vec3 normal = normalize(mat3(normalMatrix) * inNormal);
     vec3 tangent = normalize(mat3(normalMatrix) * inTangent);
@@ -28,7 +35,7 @@ vec3 getWorldSpaceNormal()
     tangent = normalize(tangent - dot(tangent, normal) * normal);
 
     vec3 bitangent = cross(tangent, normal);
-    vec3 normalMap = texture(normalTexture, inUV).rgb;
+    vec3 normalMap = texture(normalTexture, uv).rgb;
     normalMap = 2.0 * normalMap - vec3(1.0, 1.0, 1.0);
 
     mat3 TBN = mat3(tangent, bitangent, normal);
@@ -38,13 +45,14 @@ vec3 getWorldSpaceNormal()
 
 void main() {
     const float ambientFactor = 0.2;
-    vec3 color = texture(diffuseTexture, inUV).rgb;
-    float specularFactor = pow(texture(specularTexture, inUV).r, 1.0);
+    vec2 uv = getScaledUV();
+    vec3 color = texture(diffuseTexture, uv).rgb;
+    float specularFactor = pow(texture(specularTexture, uv).r, 1.0);
 
     vec4 vertex = modelMatrix * vec4(inVertex, 1.0);
     vertex /= vertex.w;
 
-    vec3 N = getWorldSpaceNormal();
+    vec3 N = getWorldSpaceNormal(uv);
     vec3 L = normalize(vertex.xyz - lightLocation);
     vec3 V = normalize(-vertex.xyz); 
 
